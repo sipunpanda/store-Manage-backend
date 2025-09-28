@@ -56,14 +56,47 @@ router.get('/', async (req, res) => {
 /**
  * 📌 Get Product by ID
  */
-router.get('/:id', async (req, res) => {
+// router.get('/:id', async (req, res) => {
+//   try {
+//     const product = await Product.findById(req.params.id).populate('vendor');
+//     res.json(product || {});
+//   } catch (err) {
+//     res.status(500).json({ error: err.message });
+//   }
+// });
+
+// GET /api/products?page=1&limit=12&search=apple
+router.get('/', async (req, res) => {
   try {
-    const product = await Product.findById(req.params.id).populate('vendor');
-    res.json(product || {});
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 12;
+    const skip = (page - 1) * limit;
+    const search = req.query.search || '';
+
+    // query with search
+    const query = {
+      $or: [
+        { name: { $regex: search, $options: 'i' } },
+        { category: { $regex: search, $options: 'i' } }
+      ]
+    };
+
+    const [products, total] = await Promise.all([
+      Product.find(query)
+        .populate('vendor', 'name')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Product.countDocuments(query)
+    ]);
+
+    res.json({ products, total, page, pages: Math.ceil(total / limit) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
+
 
 /**
  * 📌 Update Product (with image replace + old image cleanup)
